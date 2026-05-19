@@ -47,6 +47,109 @@
 | **sing-box** | `proxy` | 仅网页版 | 新一代内核，性能更优异 |
 | **sing-box** | `tun` | 网页版 + 客户端/Steam | 完美接管全局流量 |
 
+
+
+## 🌐 代理与分流（必须配置）
+
+`MajsoulMax` 默认在本地 `127.0.0.1:23410` 启动一个 HTTPS 代理（基于 mitmproxy）。推荐使用支持规则分流和覆写的代理软件（如 `Mihomo` 系的 `Clash Party` 或 `Clash Verge` / `Surge`），将雀魂相关流量导向该端口，并使用复合规则给 Python 进程做直连以避免回环。
+
+### 信任证书
+
+在配置分流规则前，请先在系统中导入并信任 `~/.mitmproxy/` 下的 `mitmproxy-ca-cert.cer` 证书。这个证书是本地自动生成的，非常安全。否则 HTTPS 流量可能会因为证书校验失败而无法正常工作。
+
+#### Windows 用户
+
+1. 开启文件资源管理器（按下 `Windows 键 + E`）
+2. 在上方地址栏输入 `%homepath%\.mitmproxy`（mitmproxy 的默认证书存储路径）然后按 Enter
+3. 找到名为 `mitmproxy-ca-cert.cer` 的证书文件
+4. 双击该证书文件
+5. 点选 `安装证书` 按钮
+6. 若出现选项，请选 `本地计算机`，然后点选下一步
+7. 选择 `将所有证书放入下列存储`，然后点 `浏览...`
+8. 选择 `受信任的根证书颁发机构`，按下确定，再点选下一步与完成
+9. 若系统要求权限，请点选是
+
+#### macOS 用户
+
+1. 打开 Finder
+2. 按下 `Command + Shift + G` 打开前往文件夹对话框，输入 `~/.mitmproxy` 然后按 Enter
+3. 找到名为 `mitmproxy-ca-cert.cer` 的证书文件
+4. 双击该证书文件，进入钥匙串访问
+5. 点选左边的 `系统钥匙串` 下的 `系统` 标签，右上角搜索 `mitmproxy`，找到导入的证书，此时是未信任状态
+6. 右键名为 `mitmproxy` 的证书项，选择 `显示简介`，在弹出的窗口中展开 `信任`
+7. 对于 `使用此证书时`，改为 `始终信任`
+8. 关闭窗口，在弹出的认证框中完成认证即可。
+
+#### iOS / iPadOS 用户
+
+若你通过分离部署的形式将本项目改为了代理节点，则可以在 iOS / iPadOS 上使用，但此时仍需在对应设备上完成证书信任。
+
+1. 首先将电脑上的 `mitmproxy-ca-cert.cer` 证书通过隔空传送或者其他方式发送到 iPhone/iPad 上，最好是隔空投送，可以自动完成导入。对于其他方式，须先保存到文件中，然后再在文件中点开该证书文件。
+2. 进入 `设置-已下载描述文件`，点击安装
+3. 前往 `通用-关于本机-证书信任设置`，打开 mitmproxy 的选项
+
+#### Android 用户
+
+无测试环境，可自行搜索。
+
+> [!CAUTION]
+>
+> 本地客户端 / Steam 端等进程需要在代理软件中开启 `TUN` / 增强模式，才能保证进程流量经过 `python` 启动的代理节点；但请务必注意避免回环代理，即你要保证从 `python` 发出的流量不会被分流回自身。
+>
+> 网页版（浏览器）一般只要正确配置系统代理或域名规则即可，通常不需要开启增强模式。
+
+
+
+### Clash Verge 全局扩展脚本（JS）示例
+
+参考 [官方文档](https://www.clashverge.dev/guide/script.html)，可以按照如下方法进行配置。
+
+在 “订阅” 页面点击 `新建`，类型选择 “Merge”，保存后右键选择启用:
+
+```js
+# Merge Template for clash verge
+# The `Merge` format used to enhance profile
+
+prepend-rules:
+  # 1. 核心防回环：让 Python 和代理本身直接联网，避免死循环
+  - PROCESS-NAME,python.exe,DIRECT
+  - PROCESS-NAME,pythonw.exe,DIRECT
+  - PROCESS-NAME,mitmdump.exe,DIRECT
+  - PROCESS-NAME,MajsoulMax.exe,DIRECT
+
+  # 2. 强制让雀魂的 HTTPS 流量【直连】或者【剥离】（不走你的 https 代理节点）
+  # 这样才能腾出空间让浏览器或者本地脚本去走 HTTP
+  - DOMAIN-KEYWORD,majsoul,🀄 雀魂麻将
+  - DOMAIN-KEYWORD,maj-soul,🀄 雀魂麻将
+
+prepend-rule-providers:
+
+prepend-proxies:
+  # 注意：这里我们依然保持本地代理。因为你要走 HTTP，我们就用明文的 http 类型去接管它
+  - name: MajsoulMax
+    type: http
+    server: 127.0.0.1
+    port: 23410
+    # 坚决不加 tls: true，保持纯明文 HTTP 传输
+
+prepend-proxy-providers:
+
+prepend-proxy-groups:
+  - name: 🀄 雀魂麻将
+    type: select
+    proxies:
+      - MajsoulMax
+      - DIRECT
+
+append-rules:
+append-rule-providers:
+append-proxies:
+append-proxy-providers:
+append-proxy-groups:
+```
+
+
+
 ---
 
 ## 🚀 使用方法
